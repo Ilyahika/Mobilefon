@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import json
@@ -8,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import parse_qsl
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Message, Update, WebAppInfo
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -20,7 +21,19 @@ from database import ensure_user, init_db, state_from_db, transaction
 from game_data import NUMBER_CASES, PHONE_CASES, PHONES, RARITY_MULTIPLIERS, TOPICS
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
-BASE_URL = (os.getenv("WEBAPP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000").rstrip("/")
+
+
+def detect_base_url():
+    explicit = (os.getenv("WEBAPP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+    if render_host:
+        return f"https://{render_host}".rstrip("/")
+    return "http://localhost:8000"
+
+
+BASE_URL = detect_base_url()
 WEBHOOK_SECRET = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32] if BOT_TOKEN else "dev"
 PUBLIC = Path(__file__).parent / "public"
 
@@ -32,6 +45,7 @@ dp.include_router(router)
 
 @router.message(CommandStart())
 @router.message(Command("play"))
+@router.message(F.text.regexp(r"(?i)^start$"))
 async def start_message(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🎮 Играть в Viral Life", web_app=WebAppInfo(url=BASE_URL))
@@ -45,12 +59,27 @@ async def start_message(message: Message):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    polling_task = None
     if bot:
-        await bot.set_webhook(f"{BASE_URL}/telegram/webhook", secret_token=WEBHOOK_SECRET, allowed_updates=["message"])
         await bot.set_my_commands([BotCommand(command="start", description="Открыть Viral Life")])
         await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Играть", web_app=WebAppInfo(url=BASE_URL)))
+        if BASE_URL.startswith("https://"):
+            try:
+                await bot.set_webhook(f"{BASE_URL}/telegram/webhook", secret_token=WEBHOOK_SECRET, allowed_updates=["message"])
+                print(f"Telegram webhook active: {BASE_URL}/telegram/webhook")
+            except Exception as exc:
+                print(f"Webhook setup failed, switching to polling: {exc}")
+                await bot.delete_webhook(drop_pending_updates=False)
+                polling_task = asyncio.create_task(dp.start_polling(bot))
+        else:
+            await bot.delete_webhook(drop_pending_updates=False)
+            polling_task = asyncio.create_task(dp.start_polling(bot))
+            print("Telegram polling active (public WEBAPP_URL is not configured)")
     yield
     if bot:
+        if polling_task:
+            await dp.stop_polling()
+            polling_task.cancel()
         await bot.session.close()
 
 
@@ -328,7 +357,7 @@ async def telegram_webhook(request: Request, x_telegram_bot_api_secret_token: st
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "bot_configured": bool(BOT_TOKEN), "webapp_url": BASE_URL, "runtime": "python"}
 
 
 @app.exception_handler(HTTPException)

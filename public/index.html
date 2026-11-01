@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#050507">
 <title>Viral Life</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js?59"></script>
 <style>
 :root{--bg:#050507;--ln:rgba(255,255,255,.11);--tx:#f6f4fc;--mut:#7f7c92;--pur:#a77bff;--pink:#e0589f;--gold:#f3c453;--blue:#4da3ff;--rc:#b07cff}
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
@@ -190,6 +190,20 @@ body.tg .app{border:0;border-radius:0;margin:0;height:100dvh}
 .dropzone{height:230px;border-radius:30px;display:grid;place-items:center;position:relative;overflow:hidden;background:radial-gradient(circle,color-mix(in srgb,var(--pc) 30%,transparent),transparent 54%),linear-gradient(145deg,#17151f,#08080c);border:1px solid #ffffff18}.dropbox{width:108px;height:91px;border-radius:23px;background:linear-gradient(145deg,color-mix(in srgb,var(--pc) 72%,#292631),#111018);border:1px solid #ffffff42;box-shadow:inset 0 2px #ffffff55,0 24px 45px #000a,0 0 42px color-mix(in srgb,var(--pc) 45%,transparent);display:grid;place-items:center;font-weight:900;letter-spacing:.12em;animation:casefloat 4s ease-in-out infinite}.dropbox.open{animation:caseopen 2.4s cubic-bezier(.2,.9,.3,1) both}.dropresult{position:absolute;text-align:center;opacity:0;transform:translateY(35px) scale(.7);transition:.8s cubic-bezier(.2,1.5,.3,1)}.dropresult.on{opacity:1;transform:none}.dropresult b{display:block;font-size:19px}.dropresult small{color:var(--mut)}
 @keyframes casefloat{50%{transform:translateY(-7px) rotateY(8deg)}}@keyframes caseopen{20%{transform:scale(.86) rotate(-5deg)}65%{transform:scale(1.18) rotate(5deg);filter:brightness(2)}100%{transform:scale(.08);opacity:0;filter:brightness(5)}}
 .tut{position:absolute;inset:0;z-index:50;display:none;pointer-events:none}.tut.on{display:block}.tutfocus{position:absolute;border-radius:24px;box-shadow:0 0 0 900px rgba(0,0,0,.82),0 0 0 2px #ffffffaa,0 0 30px #a77bff;transition:left .52s cubic-bezier(.22,1,.36,1),top .52s cubic-bezier(.22,1,.36,1),width .52s,height .52s}.tutcoach{position:absolute;left:15px;right:15px;padding:16px;border-radius:24px;background:linear-gradient(145deg,rgba(50,47,65,.96),rgba(19,18,26,.96));border:1px solid #ffffff25;box-shadow:inset 0 1.5px #ffffff4d,0 16px 45px #000c;transition:top .52s cubic-bezier(.22,1,.36,1)}.tutcoach b{font-size:14px}.tutcoach p{font-size:12px;line-height:1.45;color:#b0acbe;margin-top:5px}.tutcoach button{width:100%;margin-top:11px;padding:12px;border-radius:15px;background:linear-gradient(100deg,#6843d2,#c3519d);font-weight:800;pointer-events:auto}
+
+html,body{margin:0;overflow:hidden;height:100%;background:#09080f}
+body .app,body.tg .app{height:var(--game-height,100dvh);margin:0 auto;max-width:540px;border-radius:0;display:flex;flex-direction:column}
+@media(pointer:coarse),(max-width:700px){body .app,body.tg .app{max-width:none;width:100%}}
+#vw{flex:1;min-height:0;height:auto;padding: max(14px,var(--tg-content-safe-area-inset-top,0px),env(safe-area-inset-top)) 16px 20px;scroll-padding:18px}
+#nv{position:relative;inset:auto;flex:none;margin:4px 10px max(8px,env(safe-area-inset-bottom),var(--tg-safe-area-inset-bottom,0px));background:#201c2e}
+#vw>*{animation:none}
+#vw,#vw.out{filter:none}#app::before{inset:0;filter:none;animation:none;opacity:.42}
+.card,.st,.bal,.ava,.seg,.cs,nav,.phcard,.z{backdrop-filter:none;-webkit-backdrop-filter:none}
+.sim.busy .scan,.sim.busy::after{animation-duration:1.4s}.stg,.sim::before{animation:none}
+#guide{background:#251e35;color:#ede5ff;border:1px solid #5c4778;border-radius:17px;padding:12px 15px;margin:10px 0;font-size:14px;line-height:1.4}
+#guide small{display:block;font-size:10px;color:#c7aaff;font-weight:800;letter-spacing:.1em;margin-bottom:4px}
+.guide-target{outline:2px solid #bc95ff!important;outline-offset:3px}
+.guide-target input{min-width:0}.phvisual{pointer-events:none}.phstats{margin-right:70px}
 </style>
 </head>
 <body>
@@ -213,7 +227,7 @@ let S={cash:50000,subs:0,likes:0,vids:[],phone:null,have:[],phoneRows:[],nums:[]
 let tab='home',mode='gen',ck='s',busy=false,last=null,phoneCase='POCO',configPhone=null;
 const save=()=>{};
 const initData=()=>window.Telegram&&Telegram.WebApp?Telegram.WebApp.initData||'':'';
-async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{'content-type':'application/json','X-Telegram-Init-Data':initData(),...(opt.headers||{})}}),d=await r.json().catch(()=>({detail:'Ошибка сервера'}));if(!r.ok||d.ok===false)throw Error(d.detail||'Ошибка сервера');return d}
+async function api(path,opt={}){let r;try{r=await fetch(path,{...opt,headers:{'content-type':'application/json','X-Telegram-Init-Data':initData(),...(opt.headers||{})}})}catch(e){throw Error('Нет связи с Python-сервером')}const raw=await r.text();let d;try{d=JSON.parse(raw)}catch(e){throw Error(`Python API не запущен: HTTP ${r.status}`)}if(!r.ok||d.ok===false)throw Error(d.detail||`Ошибка API: HTTP ${r.status}`);return d}
 function applyState(x){const oldlog=S.log||[];S={cash:x.cash,subs:x.subs,likes:x.likes,name:x.name||'',pool:x.pool,phone:x.activePhone,have:x.phones.map(p=>p.id),phoneRows:x.phones,nums:x.numbers.map(n=>({id:n.id,d:n.digits,r:n.rarity,v:n.value,boost:n.boost,phoneId:n.phoneId})),vids:x.videos.map(v=>({t:v.title,l:v.likes,r:v.income,subs:v.subs,viral:v.viral})),tutorial:x.tutorial,topic:x.topic,log:oldlog.length?oldlog:['Твоя история только начинается']}}
 async function action(a,payload={}){const d=await api('/api/action',{method:'POST',body:JSON.stringify({action:a,payload})});applyState(d.state);return d.result}
 const rate=()=>S.vids.reduce((a,v)=>a+v.r,0);
@@ -269,12 +283,13 @@ $('#rl').textContent=RR[n.r][0].toUpperCase();$('#ev').textContent='Оценка
 S.nums.push(n);last=n;busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';
 log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');save();toast('Номер добавлен в «Мои номера»')}},50)}
 /* actions */
-async function openPhoneCase(){if(busy)return;if(S.phoneRows.length>=3)return toast('Лимит 3 телефона');busy=true;try{const x=await action('open_phone_case',{brand:phoneCase}),p=PH.find(v=>v.id===x.phone_id),box=$('#dropbox'),out=$('#dropresult');box.classList.add('open');setTimeout(()=>{out.innerHTML=`<div class="phvisual" style="position:relative;right:auto;top:auto;margin:0 auto 18px;--pc:${PCOL[p.brand]}"></div><b>${p.n}</b><small>${RR[Math.min(3,p.rarity)][0]} · камера ${p.cam}% · мощность ${p.perf}%</small>`;out.classList.add('on');try{Telegram.WebApp.HapticFeedback.impactOccurred(p.rarity>=3?'heavy':'medium')}catch(e){}busy=false;setTimeout(draw,2200)},2350)}catch(e){busy=false;toast(e.message)}}
+async function openPhoneCase(){if(busy)return;if(S.phoneRows.length>=3)return toast('Лимит 3 телефона');busy=true;try{const x=await action('open_phone_case',{brand:phoneCase}),p=PH.find(v=>v.id===x.phone_id),box=$('#dropbox'),out=$('#dropresult');box.classList.add('open');setTimeout(()=>{out.innerHTML=`<div class="phvisual" style="position:relative;right:auto;top:auto;margin:0 auto 18px;--pc:${PCOL[p.brand]}"></div><b>${p.n}</b><small>${RR[Math.min(3,p.rarity)][0]} · камера ${p.cam}% · мощность ${p.perf}%</small>`;out.classList.add('on');try{Telegram.WebApp.HapticFeedback.impactOccurred(p.rarity>=3?'heavy':'medium')}catch(e){}busy=false;setTimeout(()=>{if(tab==='phones'&&!busy)draw()},2200)},2350)}catch(e){busy=false;toast(e.message)}}
 async function shoot(){const p=ph();if(!p||busy)return;busy=true;const r=$('#rec'),b=$('#sh');r.classList.add('on');b.disabled=true;b.firstChild.textContent='Снимаем…';try{const x=await action('shoot');setTimeout(()=>{log(x.viral?'🔥 Ролик взорвал ленту: +'+f2(x.likes)+' лайков':'Новый ролик: +'+f2(x.likes)+' лайков, +'+x.subs+' подписчиков');busy=false;draw();toast(x.viral?'Вирусное видео!':'Видео опубликовано')},1450)}catch(e){busy=false;toast(e.message);draw()}}
-document.addEventListener('click',async e=>{const a=e.target.closest('[data-a]');if(!a)return;const d=a.dataset;
+document.addEventListener('click',async e=>{const a=e.target.closest('[data-a]');if(!a||busy||a.disabled)return;const d=a.dataset;
+if(TUT[S.tutorial] && !(TUT[S.tutorial].q ? a.matches(TUT[S.tutorial].q) : d.a==='finish-tutorial'))return;
 switch(d.a){
 case't':if(busy)return;tab=d.t;draw();break;
-case'm':mode=d.m;draw();break;
+case'm':if(busy)return;mode=d.m;draw();break;
 case'c':if(busy)return;ck=d.k;draw();break;
 case'gen':runGen();break;
 case'first':try{await action('claim_starter');log('Получен первый телефон');tab='phones';draw();toast('Телефон получен')}catch(e){toast(e.message)}break;
@@ -284,7 +299,7 @@ case'claim':try{const x=await action('claim_income');toast('Получено '+f
 case'name':try{await action('save_name',{name:$('#nm').value.trim()});log('Никнейм: '+(S.name||'—'));tab='phones';draw();toast('Никнейм сохранён')}catch(e){toast(e.message)}break;
 case'shoot':shoot();break;
 case'sell':try{const n=S.nums[+d.i];await action('sell_number',{number_id:n.id});log('Продан номер '+fmt(n.d));draw();toast('Номер продан игре')}catch(e){toast(e.message)}break;
-case'pcase':phoneCase=d.brand;draw();break;
+case'pcase':if(busy)return;phoneCase=d.brand;draw();break;
 case'open-phone-case':openPhoneCase();break;
 case'phone-menu':configPhone=configPhone===d.id?null:d.id;draw();break;
 case'attach-number':try{await action('attach_number',{phone_id:d.phone,number_id:d.number});configPhone=null;draw();toast('Номер установлен')}catch(e){toast(e.message)}break;
@@ -304,13 +319,33 @@ const TUT=[
  {tab:'studio',q:'[data-a="shoot"]',h:'Сними первое видео',p:'Каждый телефон позволяет снять 3 ролика за 30 минут.'},
  {tab:'home',q:null,h:'Обучение завершено',p:'Открывай кейсы, ставь редкие SIM и развивай канал.'}
 ];
-function showTut(){const layer=$('#tut');if(S.tutorial<0||S.tutorial>=TUT.length){layer.classList.remove('on');return}const s=TUT[S.tutorial];if(tab!==s.tab){tab=s.tab;draw();return}layer.classList.add('on');const focus=$('#tutfocus'),coach=$('#tutcoach'),target=s.q&&$(s.q);const place=()=>{const ar=$('#app').getBoundingClientRect();if(!target){Object.assign(focus.style,{left:'50%',top:'50%',width:'1px',height:'1px'});coach.style.top='38%';coach.innerHTML=`<b>${s.h}</b><p>${s.p}</p><button data-a="finish-tutorial">Начать играть</button>`;return}const r=target.getBoundingClientRect(),pad=7;Object.assign(focus.style,{left:r.left-ar.left-pad+'px',top:r.top-ar.top-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px'});const below=r.bottom-ar.top+17;coach.style.top=(below+145<ar.height?below:Math.max(14,r.top-ar.top-145))+'px';coach.innerHTML=`<b>${s.h}</b><p>${s.p}</p>`};if(target){const vr=$('#vw').getBoundingClientRect(),r=target.getBoundingClientRect();if(r.top<vr.top+8||r.bottom>vr.bottom-100){target.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(place,360)}else place()}else place()}
+function showTut(){
+ const step=TUT[S.tutorial], view=$('#vw'), nav=$('#nv');
+ nav.inert=!!step;
+ if(!step)return;
+ if(tab!==step.tab){tab=step.tab;draw();return}
+ let target=step.q && view.querySelector(step.q);
+ if(S.tutorial===2 && target)target=target.closest('.card');
+ const group=target && [...view.children].find(el=>el===target||el.contains(target));
+ const tip=document.createElement('aside');tip.id='guide';tip.setAttribute('role','status');
+ tip.innerHTML='<small>ОБУЧЕНИЕ · '+(S.tutorial+1)+' / '+TUT.length+'</small><b>'+step.h+'</b><p>'+step.p+'</p>';
+ if(group)group.before(tip);else view.prepend(tip);
+ for(const el of view.children)if(el!==tip&&el!==group)el.inert=true;
+ if(target){target.classList.add('guide-target');const vr=view.getBoundingClientRect(),r=target.getBoundingClientRect();if(r.bottom>vr.bottom-14)view.scrollTop+=r.bottom-vr.bottom+18}
+ else if(!step.q)tip.insertAdjacentHTML('beforeend','<button class="pill" data-a="finish-tutorial">Начать играть</button>');
+}
+function sizeGame(){
+ const height=window.visualViewport?.height||window.innerHeight;
+ document.documentElement.style.setProperty('--game-height',height+'px');
+}
+sizeGame();window.visualViewport?.addEventListener('resize',sizeGame);window.addEventListener('resize',sizeGame);
+window.Telegram?.WebApp?.onEvent?.('viewportChanged',sizeGame);
 function initSim(){const s=$('#sim');s.insertAdjacentHTML('afterbegin','<div class="rays"></div><div class="holo"></div><div class="gl"></div>');s.insertAdjacentHTML('beforeend','<div class="sw"></div><canvas class="fx"></canvas><div class="fl"></div>');cv=s.querySelector('canvas');cx=cv.getContext('2d');const dpr=Math.min(1.5,devicePixelRatio||1);cv.width=Math.round(s.clientWidth*dpr);cv.height=Math.round(s.clientHeight*dpr);P=[];
 s.addEventListener('pointermove',e=>{if(busy)return;const r=s.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;s.style.setProperty('--ry',(x-.5)*14+'deg');s.style.setProperty('--rx',(.5-y)*14+'deg');s.style.setProperty('--gx',x*100+'%');s.style.setProperty('--gy',y*100+'%')});
 s.addEventListener('pointerleave',()=>{s.style.setProperty('--rx','0deg');s.style.setProperty('--ry','0deg')})}
 function emit(x,y,vx,vy,c,s,d){P.push({x,y,vx,vy,l:1,d,s,c});if(!raf)raf=requestAnimationFrame(loop)}
 function burst(n,cols,pw){const w=cv.width,h=cv.height;for(let i=0;i<n;i++){const a=Math.random()*6.283,sp=(.4+Math.random())*pw;emit(w/2,h*.44,Math.cos(a)*sp,Math.sin(a)*sp-pw*.25,cols[i%cols.length],2+Math.random()*4,.008+Math.random()*.012)}}
-function loop(){cx.clearRect(0,0,cv.width,cv.height);P=P.filter(p=>p.l>0);for(const p of P){p.x+=p.vx;p.y+=p.vy;p.vy+=.12;p.vx*=.99;p.l-=p.d;cx.globalAlpha=Math.max(0,p.l);cx.fillStyle=p.c;cx.shadowColor=p.c;cx.shadowBlur=12;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.283);cx.fill()}raf=P.length?requestAnimationFrame(loop):0}
+function loop(){cx.clearRect(0,0,cv.width,cv.height);P=P.filter(p=>p.l>0);for(const p of P){p.x+=p.vx;p.y+=p.vy;p.vy+=.12;p.vx*=.99;p.l-=p.d;cx.globalAlpha=Math.max(0,p.l);cx.fillStyle=p.c;cx.shadowColor=p.c;cx.shadowBlur=0;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.283);cx.fill()}raf=P.length?requestAnimationFrame(loop):0}
 function countUp(e,to){const t0=performance.now();(function st(t){const k=Math.min(1,(t-t0)/1000);e.textContent='Оценка '+f(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(st)})(t0)}
 function runGen(){const x=CS[ck];if(busy)return;if(S.nums.length>=5)return toast('Лимит 5 номеров — продай лишний');if(S.cash<x.p)return toast('Не хватает денег');
 busy=true;S.cash-=x.p;money();const n=genNum(ck),sim=$('#sim'),br=$('#br'),nu=$('#nu'),rc=RR[n.r][1],rl=$('#rl');
@@ -348,27 +383,22 @@ sim.className='sim busy';sim.style.setProperty('--rx','0deg');sim.style.setPrope
 const strip='<span class="rt">'+[...'01234567890123456789'].map(c=>'<i>'+c+'</i>').join('')+'</span>';
 nu.className='num';nu.innerHTML='<span class="pf">+7</span><span class="sp"></span>'+[0,1,2,3,4,5,6,7,8,9].map(i=>(i==3||i==6||i==8?'<span class="sp"></span>':'')+'<span class="rl">'+strip+'</span>').join('');
 const rw=[...nu.querySelectorAll('.rl')],st=rw.map(e=>e.firstChild),D=[2800,4000,5400,7200,9000][n.r],T=i=>900+(D-900)*Math.pow(i/9,1.3),R=st.map(()=>({p:Math.random()*10,m:0,dn:0})),t0=performance.now();
-let last=t0,lk=0,ch=false,zi=0,zt=0,zf=0;
-function fr(t){const e=t-t0,k=Math.min(1,e/D),dt=Math.min(.05,(t-last)/1000);last=t;br.style.width=k*100+'%';
+let previousFrame=t0,lk=0,ch=false,zi=0,zt=0,zf=0;
+function fr(t){const e=t-t0,k=Math.min(1,e/D),dt=Math.min(.05,(t-previousFrame)/1000);previousFrame=t;br.style.width=k*100+'%';
 for(let i=0;i<10;i++){const r=R[i];if(r.dn)continue;const ti=T(i);
 if(e<ti-550){r.p=(r.p+30*dt*Math.min(1,e/450))%10;st[i].style.filter='blur(1.2px)'}
 else{if(!r.m){r.m=1;r.p0=r.p;let g=Math.ceil(r.p0+3);while(g%10!=+n.d[i])g++;r.g=g;st[i].style.filter='none'}
 const u=Math.min(1,(e-(ti-550))/550);r.p=r.p0+(r.g-r.p0)*EB(u);
-if(u>=1){r.dn=1;r.p=+n.d[i];rw[i].classList.add('k');lk++;if(n.r)burst(n.r*2,[rc],2.5)}}
+if(u>=1){r.dn=1;r.p=+n.d[i];rw[i].classList.add('k');lk++}}
 st[i].style.transform='translateY('+(-(((r.p%10)+10)%10)*1.18)+'em)'}
-if(k<.8){if(t-zt>110+420*k*k){zt=t;zi=(zi+1)%5;setZ(zi)}}
-else if(k<.96){if(t-zt>380){zt=t;zi=zi==n.r?Math.min(4,n.r+(n.r<4?1:-1)):n.r;setZ(zi)}}
-else if(!zf){zf=1;setZ(n.r)}
-if(!ch&&k>.6&&n.r>=1){ch=true;rcSet(rc);if(n.r>=2)sim.classList.add('charge','c'+n.r)}
-if(n.r>=1&&k>.3&&Math.random()<.2+n.r*.2)emit(k*cv.width,cv.height-40,(Math.random()-.5)*1.5,-1-Math.random()*2*n.r,rc,1.5+Math.random()*2,.02);
 if(lk<10)requestAnimationFrame(fr);else done()}
 function done(){sim.classList.remove('busy','charge');sim.classList.add('r'+n.r);rcSet(rc);setZ(n.r,1);sim.classList.remove('rv','flash');void sim.offsetWidth;sim.classList.add('rv','flash');
-burst([16,45,90,150,210][n.r],n.r>=3?[rc,'#fff','#ffe08c','#ff507a']:[rc,'#fff'],[3,5,7,9,11][n.r]);lb.textContent=RR[n.r][0].toUpperCase();lb.className='pop';countUp($('#ev'),n.v);
+burst([12,22,32,45,60][n.r],n.r>=3?[rc,'#fff','#ffe08c','#ff507a']:[rc,'#fff'],[3,5,7,9,11][n.r]);lb.textContent=RR[n.r][0].toUpperCase();lb.className='pop';countUp($('#ev'),n.v);
 if(n.r>=3){const a=$('#app');a.classList.add('shake');setTimeout(()=>a.classList.remove('shake'),700)}
 try{window.Telegram&&Telegram.WebApp.HapticFeedback&&Telegram.WebApp.HapticFeedback.impactOccurred(['light','medium','heavy','rigid','rigid'][n.r]);navigator.vibrate&&navigator.vibrate([[10],[20,40,20],[30,50,30],[30,50,30,50,160],[50,70,50,70,220]][n.r])}catch(e){}
 last=n;busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');toast('Номер добавлен в «Мои номера»')}
 requestAnimationFrame(fr)}
-async function boot(){try{const tg=window.Telegram&&Telegram.WebApp;if(tg&&tg.initData!==undefined){tg.ready();tg.expand();tg.setHeaderColor('#050507');tg.setBackgroundColor('#050507');try{tg.disableVerticalSwipes()}catch(e){}document.body.classList.add('tg')}const [cat,st]=await Promise.all([api('/api/catalog'),api('/api/state')]);PH=cat.phones.map(p=>({id:p.id,n:p.name,cam:p.cam,perf:p.perf,p:p.starter?0:p.value,brand:p.brand,rarity:p.rarity,flagship:!!p.flagship}));applyState(st.state);draw();setTimeout(()=>$('#sp').classList.add('out'),650)}catch(e){$('#sp').innerHTML=`<div class="v">!</div><b>ОШИБКА ВХОДА</b><small>${e.message}</small>`}}
+async function boot(){try{const tg=window.Telegram&&Telegram.WebApp;if(tg&&tg.initData!==undefined){tg.ready();tg.expand();try{if(tg.isVersionAtLeast('8.0')&&!tg.isFullscreen)tg.requestFullscreen()}catch{}tg.setHeaderColor('#050507');tg.setBackgroundColor('#050507');try{tg.disableVerticalSwipes()}catch(e){}document.body.classList.add('tg')}const [cat,st]=await Promise.all([api('/api/catalog'),api('/api/state')]);PH=cat.phones.map(p=>({id:p.id,n:p.name,cam:p.cam,perf:p.perf,p:p.starter?0:p.value,brand:p.brand,rarity:p.rarity,flagship:!!p.flagship}));applyState(st.state);draw();setTimeout(()=>$('#sp').classList.add('out'),650)}catch(e){$('#sp').innerHTML=`<div class="v">!</div><b>ОШИБКА ВХОДА</b><small>${e.message}</small>`}}
 boot();
 </script>
 </body>

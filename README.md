@@ -14,7 +14,8 @@
 1. Загрузите содержимое этой папки в GitHub.
 2. Render → **New → Blueprint** → выберите репозиторий с `render.yaml`.
 3. Добавьте секретную переменную `BOT_TOKEN` — токен от BotFather.
-4. Запустите Deploy.
+4. Добавьте `WEBAPP_URL` — полный адрес сервиса, например `https://viral-life.onrender.com`.
+5. Запустите Deploy.
 
 Команды уже записаны в `render.yaml`:
 
@@ -32,6 +33,34 @@ Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
 - будет проверять подпись Telegram Mini App.
 
 Пользователь пишет боту `/start`, получает сообщение с кнопкой **«🎮 Играть в Viral Life»** и открывает Mini App внутри Telegram.
+
+Обычное сообщение `start` без слеша тоже поддерживается.
+
+## Если вы обновляете старый Node-сервис
+
+`render.yaml` не всегда меняет настройки уже существующего Web Service. Откройте **Render → Settings** и вручную замените старые команды:
+
+```text
+Runtime: Python 3
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+Удалите старую команду `npm start`. Затем выполните **Manual Deploy → Clear build cache & deploy**.
+
+После развёртывания откройте:
+
+```text
+https://ВАШ-СЕРВИС.onrender.com/health
+```
+
+Правильный ответ содержит:
+
+```json
+{"ok":true,"bot_configured":true,"webapp_url":"https://ВАШ-СЕРВИС.onrender.com","runtime":"python"}
+```
+
+Если `runtime` не равен `python`, Render всё ещё запускает старую Node-сборку.
 
 ## Локальный запуск
 
