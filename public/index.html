@@ -204,6 +204,7 @@ body .app,body.tg .app{height:var(--game-height,100dvh);margin:0 auto;max-width:
 #guide small{display:block;font-size:10px;color:#c7aaff;font-weight:800;letter-spacing:.1em;margin-bottom:4px}
 .guide-target{outline:2px solid #bc95ff!important;outline-offset:3px}
 .guide-target input{min-width:0}.phvisual{pointer-events:none}.phstats{margin-right:70px}
+#guide-shade{position:absolute;inset:0;background:rgba(0,0,0,.72);z-index:48;pointer-events:none}#guide{position:relative;z-index:51;box-shadow:0 12px 36px #0009}.guide-top{position:relative;z-index:50;isolation:isolate}.guide-target{position:relative;z-index:51}.growth{margin-top:12px}.growth h3{margin:5px 0 12px}.xp-track{height:9px;border-radius:20px;background:#332b47;overflow:hidden;margin:12px 0}.xp-track i{display:block;height:100%;background:linear-gradient(90deg,#6f8cff,#a77bff);border-radius:20px}.taskline{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #ffffff19;padding:12px 0;gap:12px}.taskline small{display:block;color:#aaa0bf;font-size:10px;margin-top:4px}.taskline .pill{flex-shrink:0}.production{display:flex;gap:5px;justify-content:space-between;color:#c4a3ff;font-size:10px;font-weight:800}.case-won{margin:12px 0;padding:16px;background:#241d34;border:1px solid #5c4778;border-radius:18px}.case-won p{color:#bbb1cf;font-size:12px;line-height:1.55}.case-won .pill{width:100%}#admin-data input{width:100%;margin:8px 0;background:#16121f;color:white;border:1px solid #5c4778;border-radius:12px;padding:12px}#admin-data label{display:block;font-size:11px;color:#b9afd0;margin-top:12px}
 </style>
 </head>
 <body>
@@ -219,16 +220,16 @@ const $=s=>document.querySelector(s),f=n=>Math.round(n).toLocaleString('ru-RU')+
 let PH=[];
 const PCOL={Starter:'#a8a9ad',POCO:'#f5d72a',Xiaomi:'#ff7a2f',Pixel:'#70d0a1',Samsung:'#5c94ff',iPhone:'#d4b7ff'};
 const PCASE={POCO:{p:65000,c:'#f5d72a'},Xiaomi:{p:105000,c:'#ff7a2f'},Pixel:{p:145000,c:'#70d0a1'},Samsung:{p:210000,c:'#5c94ff'},iPhone:{p:295000,c:'#d4b7ff'}};
-const CS={s:{n:'Простой',p:15000,d:'любой паттерн',k:'ПРОСТОЙ КЕЙС',c:['#10243a','#4da3ff','#4da3ff33'],w:[.7,.24,.05,.01]},
- n:{n:'Красивый',p:75000,d:'пары и серии',k:'КРАСИВЫЙ КЕЙС',c:['#221238','#a77bff','#a77bff33'],w:[.35,.4,.2,.05]},
- b:{n:'Бизнес',p:350000,d:'редкие комбинации',k:'БИЗНЕС-КЕЙС',c:['#2b2108','#f3c453','#f3c45333'],w:[.1,.3,.45,.15]}};
+const CS={s:{n:'Простой',p:15000,d:'любой паттерн',k:'ПРОСТОЙ КЕЙС',c:['#10243a','#4da3ff','#4da3ff33'],w:[.79,.20,.01,0,0]},
+ n:{n:'Красивый',p:75000,d:'пары и серии',k:'КРАСИВЫЙ КЕЙС',c:['#221238','#a77bff','#a77bff33'],w:[0,.50,.38,.11,.01]},
+ b:{n:'Бизнес',p:350000,d:'редкие комбинации',k:'БИЗНЕС-КЕЙС',c:['#2b2108','#f3c453','#f3c45333'],w:[0,0,.70,.25,.05]}};
 const RR=[['Обычный','#8f95a8',[.3,.7]],['Редкий','#4da3ff',[.8,1.6]],['Эпический','#b07cff',[1.8,3.5]],['Легендарный','#ffc94d',[5,12]],['Секретный','#ff557b',[15,30]]];
 let S={cash:50000,subs:0,likes:0,vids:[],phone:null,have:[],phoneRows:[],nums:[],name:'',pool:0,tutorial:0,topic:0,log:['Твоя история только начинается']};
 let tab='home',mode='gen',ck='s',busy=false,last=null,phoneCase='POCO',configPhone=null;
 const save=()=>{};
 const initData=()=>window.Telegram&&Telegram.WebApp?Telegram.WebApp.initData||'':'';
 async function api(path,opt={}){let r;try{r=await fetch(path,{...opt,headers:{'content-type':'application/json','X-Telegram-Init-Data':initData(),...(opt.headers||{})}})}catch(e){throw Error('Нет связи с Python-сервером')}const raw=await r.text();let d;try{d=JSON.parse(raw)}catch(e){throw Error(`Python API не запущен: HTTP ${r.status}`)}if(!r.ok||d.ok===false)throw Error(d.detail||`Ошибка API: HTTP ${r.status}`);return d}
-function applyState(x){const oldlog=S.log||[];S={cash:x.cash,subs:x.subs,likes:x.likes,name:x.name||'',pool:x.pool,phone:x.activePhone,have:x.phones.map(p=>p.id),phoneRows:x.phones,nums:x.numbers.map(n=>({id:n.id,d:n.digits,r:n.rarity,v:n.value,boost:n.boost,phoneId:n.phoneId})),vids:x.videos.map(v=>({t:v.title,l:v.likes,r:v.income,subs:v.subs,viral:v.viral})),tutorial:x.tutorial,topic:x.topic,log:oldlog.length?oldlog:['Твоя история только начинается']}}
+function applyState(x){const oldlog=S.log||[];S={cash:x.cash,subs:x.subs,likes:x.likes,name:x.name||'',pool:x.pool,phone:x.activePhone,have:x.phones.map(p=>p.id),phoneRows:x.phones,nums:x.numbers.map(n=>({id:n.id,d:n.digits,r:n.rarity,v:n.value,boost:n.boost,phoneId:n.phoneId})),vids:x.videos.map(v=>({t:v.title,l:v.likes,r:v.income,subs:v.subs,viral:v.viral})),tutorial:x.tutorial,topic:x.topic,level:x.level||1,claimedLevel:x.claimedLevel||1,xp:x.xp||0,nextXp:x.nextXp||120,daily:x.daily||{},isAdmin:x.isAdmin,log:oldlog.length?oldlog:['Твоя история только начинается']}}
 async function action(a,payload={}){const d=await api('/api/action',{method:'POST',body:JSON.stringify({action:a,payload})});applyState(d.state);return d.result}
 const rate=()=>S.vids.reduce((a,v)=>a+v.r,0);
 const ph=()=>PH.find(p=>p.id===S.phone);
@@ -259,13 +260,13 @@ ${mode=='gen'?`<p class="sub" style="margin:0">Выбери класс кейс�
 <div class="cs3">${Object.entries(CS).map(([k,x])=>`<button class="cs ${k==ck?'on':''}" data-a="c" data-k="${k}" style="--c1:${x.c[0]};--c2:${x.c[1]};--c3:${x.c[2]}"><b>${x.n}</b><strong>${f(x.p)}</strong><small>${x.d}</small></button>`).join('')}</div>
 <div class="sim" id="sim"><div class="sr"><span>VIRAL SIM</span><span>${c.k}</span></div><div class="chip"></div><div class="num idle" id="nu">+7 XXX XXX XX XX</div><div class="sf"><span id="rl">ГОТОВ К ГЕНЕРАЦИИ</span><span id="ev"></span></div><div class="bar"><i id="br"></i></div></div>
 <button class="go" data-a="gen" id="gb"><span>${last?'Сгенерировать ещё':'Сгенерировать номер'}</span><small>${f(c.p)}</small></button>
-<div class="note">Выкуп игрой: 40% оценочной стоимости · номер возвращается в оборот</div>`:
+<div class="note">Шанс окупить кейс: 30% · не окупить: 70%. Продажа: 40% оценки. Вероятности редкостей указаны для каждого кейса.</div><div class="note">${Object.entries(CS).map(([k,v])=>`${v.n}: ${v.w.map((q,i)=>q?RR[i][0]+' '+Math.round(q*100)+'%':'').filter(Boolean).join(' · ')}`).join('<br>')}</div>`:
 `<div class="sub" style="margin:0 0 4px">${S.nums.length} / 5 номеров</div>${S.nums.length?S.nums.map((n,i)=>`<div class="card row"><div><b style="font-size:17px">${fmt(n.d)}</b><div style="font-size:11px;font-weight:800;color:${RR[n.r][1]};margin-top:4px">${RR[n.r][0].toUpperCase()} · ${f(n.v)}</div></div><button class="pill" data-a="sell" data-i="${i}">Продать<br><small>${f(n.v*.4)}</small></button></div>`).join(''):'<div class="card sub">Открой первый кейс с номером</div>'}`}`},
 profile(){return head()+`<div class="eb">ПРОФИЛЬ</div><div class="hd"><h1>${S.name||'Новый автор'}</h1></div><div class="grid2"><div class="st"><span>Подписчики</span><b>${f2(S.subs)}</b></div><div class="st"><span>Лайки</span><b>${f2(S.likes)}</b></div></div><div class="card"><span style="font-size:11px;color:var(--mut)">Состояние</span><b style="display:block;font-size:26px">${f(S.cash)}</b></div><div class="card sub" style="margin-top:12px">Продвижение: убывающая эффективность — чем больше подписчиков, тем сложнее расти.</div><button class="go" data-a="reset" style="background:#1d1b27;box-shadow:none;border:1px solid var(--ln)"><span>Начать заново</span><small>↻</small></button>`}};
 const f2=n=>Math.round(n).toLocaleString('ru-RU');
 const fmt=s=>'+7 '+s.slice(0,3)+' '+s.slice(3,6)+' '+s.slice(6,8)+' '+s.slice(8);
 function draw(){$('#vw').innerHTML=V[tab]();$('#vw').scrollTop=0;
-$('#nv').innerHTML=[['home','⌂','Главная'],['studio','●','Студия'],['phones','▯','Телефоны'],['numbers','+7','Номера'],['profile','◉','Профиль']].map(([k,i,t])=>`<button data-a="t" data-t="${k}" class="${tab==k?'on':''}"><i>${i}</i>${t}</button>`).join('');save()}
+$('#nv').innerHTML=[['home','⌂','Главная'],['studio','●','Студия'],['phones','▯','Телефоны'],['numbers','+7','Номера'],['profile','◉','Профиль'],...(S.isAdmin?[['admin','⚙','Админ']]:[])].map(([k,i,t])=>`<button data-a="t" data-t="${k}" class="${tab==k?'on':''}"><i>${i}</i>${t}</button>`).join('');save()}
 /* number generator */
 function genNum(k){const x=CS[k];let r=Math.random(),i=0,c=x.w[0];while(r>c&&i<3){i++;c+=x.w[i]}
 const d=()=>Math.floor(Math.random()*10),R=n=>Array.from({length:n},d).join(''),rp=(n)=>String(d()).repeat(n);
@@ -280,7 +281,7 @@ let lk=0,t=0;const iv=setInterval(()=>{t++;if(t%4==0){lk++;br.style.width=lk*10+
 let s=n.d.slice(0,lk);while(s.length<10)s+=Math.floor(Math.random()*10);nu.textContent=fmt(s);
 if(lk>=10){clearInterval(iv);sim.classList.remove('busy');nu.textContent=fmt(n.d);sim.style.setProperty('--rc',RR[n.r][1]);
 $('#rl').textContent=RR[n.r][0].toUpperCase();$('#ev').textContent='Оценка '+f(n.v);sim.classList.remove('rv');void sim.offsetWidth;sim.classList.add('rv');
-S.nums.push(n);last=n;busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';
+S.nums.push(n);last=n;$('#gb').insertAdjacentHTML('afterend',`<div class="case-won"><b style="color:${RR[n.r][1]}">${RR[n.r][0]} · ${f(n.v*.4)} за продажу</b><p>${reason(n)}. Оценка ${f(n.v)}, выкуп игрой 40%. ${n.v*.4>=x.p?'Этот номер окупает стоимость кейса!':'Этот номер не окупает стоимость кейса.'}</p><button class="pill" data-a="sell-new" data-id="${n.id}">Продать за ${f(n.v*.4)}</button></div>`);busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';
 log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');save();toast('Номер добавлен в «Мои номера»')}},50)}
 /* actions */
 async function openPhoneCase(){if(busy)return;if(S.phoneRows.length>=3)return toast('Лимит 3 телефона');busy=true;try{const x=await action('open_phone_case',{brand:phoneCase}),p=PH.find(v=>v.id===x.phone_id),box=$('#dropbox'),out=$('#dropresult');box.classList.add('open');setTimeout(()=>{out.innerHTML=`<div class="phvisual" style="position:relative;right:auto;top:auto;margin:0 auto 18px;--pc:${PCOL[p.brand]}"></div><b>${p.n}</b><small>${RR[Math.min(3,p.rarity)][0]} · камера ${p.cam}% · мощность ${p.perf}%</small>`;out.classList.add('on');try{Telegram.WebApp.HapticFeedback.impactOccurred(p.rarity>=3?'heavy':'medium')}catch(e){}busy=false;setTimeout(()=>{if(tab==='phones'&&!busy)draw()},2200)},2350)}catch(e){busy=false;toast(e.message)}}
@@ -298,19 +299,28 @@ case'ph':try{await action('select_phone',{phone_id:d.id});tab=S.tutorial===4?'st
 case'claim':try{const x=await action('claim_income');toast('Получено '+f(x.amount));draw()}catch(e){toast(e.message)}break;
 case'name':try{await action('save_name',{name:$('#nm').value.trim()});log('Никнейм: '+(S.name||'—'));tab='phones';draw();toast('Никнейм сохранён')}catch(e){toast(e.message)}break;
 case'shoot':shoot();break;
-case'sell':try{const n=S.nums[+d.i];await action('sell_number',{number_id:n.id});log('Продан номер '+fmt(n.d));draw();toast('Номер продан игре')}catch(e){toast(e.message)}break;
+case'sell-new':try{const n=S.nums.find(n=>String(n.id)===String(d.id));if(!n)return;if(!confirm('Продать '+fmt(n.d)+' за '+f(n.v*.4)+'?'))break;await action('sell_number',{number_id:n.id});last=null;draw();toast('Продано за '+f(n.v*.4))}catch(e){toast(e.message)}break;
+case'sell':try{const n=S.nums[+d.i];if(!confirm('Продать '+fmt(n.d)+' за '+f(n.v*.4)+'? Это действие нельзя отменить.'))break;await action('sell_number',{number_id:n.id});log('Продан номер '+fmt(n.d));draw();toast('Номер продан игре')}catch(e){toast(e.message)}break;
 case'pcase':if(busy)return;phoneCase=d.brand;draw();break;
 case'open-phone-case':openPhoneCase();break;
 case'phone-menu':configPhone=configPhone===d.id?null:d.id;draw();break;
 case'attach-number':try{await action('attach_number',{phone_id:d.phone,number_id:d.number});configPhone=null;draw();toast('Номер установлен')}catch(e){toast(e.message)}break;
+case'daily':try{const r=await action('claim_daily',{task:d.task});draw();toast('Награда '+f(r.amount)+' · +'+r.xp+' XP')}catch(e){toast(e.message)}break;
+case'level':try{const r=await action('claim_level',{level:+d.level});draw();toast('За уровень: '+f(r.amount))}catch(e){toast(e.message)}break;
+case'admin-grant':try{const id=Number($('#ad-id').value),amount=Number($('#ad-sum').value);await action('admin_grant',{user_id:id,amount});toast('Баланс игрока пополнен')}catch(e){toast(e.message)}break;
+case'admin-save':try{await action('admin_setting',{key:d.key,value:Number($(d.key==='income_multiplier'?'#ad-income':'#ad-payout').value)});toast('Настройка сохранена')}catch(e){toast(e.message)}break;
+case'admin-refresh':await loadAdmin();break;
 case'finish-tutorial':try{await action('finish_tutorial');draw()}catch(e){toast(e.message)}break;
 case'reset':if(confirm('Удалить весь прогресс?'))try{await action('reset');tab='home';draw()}catch(e){toast(e.message)}break}});
 let cs=S.cash,first=true,dt,P=[],raf=0,cv,cx;
 function money(){const e=$('#bv');if(!e)return;const from=cs,to=S.cash,t0=performance.now();cs=to;const b=$('#bal');b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');(function st(t){const k=Math.min(1,(t-t0)/700);e.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))).toLocaleString('ru-RU');if(k<1)requestAnimationFrame(st)})(t0);save()}
-function mkNav(){$('#nv').innerHTML='<i id="ni"></i>'+[['home','⌂','Главная'],['studio','●','Студия'],['phones','▯','Телефоны'],['numbers','+7','Номера'],['profile','◉','Профиль']].map(([k,i,t])=>`<button data-a="t" data-t="${k}"><i>${i}</i>${t}</button>`).join('')}
+function reason(n){return ['Повседневная цифровая комбинация','Запоминающиеся сочетания цифр','Выраженная серия или повтор','Редкая коллекционная комбинация','Исключительно редкий цифровой паттерн'][n.r]+'; бонус охвата +'+n.boost+'%'}
+function progress(){const pct=Math.max(4,Math.min(100,S.xp/(S.nextXp||120)*100));let tasks=[['login','Ежедневный вход',true,4000],['video1','Сними 1 видео',(S.daily.videos||0)>=1,7000],['video3','Сними 3 видео',(S.daily.videos||0)>=3,15000]];return `<div class="card growth"><div class="row"><div><small class="sub">ПРОГРЕСС АВТОРА</small><h3>Уровень ${S.level||1}</h3></div><b>${S.xp||0} XP</b></div><div class="xp-track"><i style="width:${pct}%"></i></div><p class="sub">Получай опыт за видео и задания. Награда за каждый новый уровень: ${f((S.level||1)*5000)} и выше.</p><button class="pill" data-a="level" data-level="${(S.claimedLevel||1)+1}" ${(S.level||1)<=(S.claimedLevel||1)?'disabled':''} >Забрать награду за уровень ${(S.claimedLevel||1)+1}</button></div><div class="card growth"><h3>✦ ЗАДАНИЯ НА СЕГОДНЯ</h3>${tasks.map(([id,name,ready,prize])=>`<div class="taskline"><div><b>${name}</b><small>+${f(prize)} · XP</small></div><button class="pill" data-a="daily" data-task="${id}" ${!ready||(S.daily.claimed||[]).includes(id)?'disabled':''}>${(S.daily.claimed||[]).includes(id)?'Получено':ready?'Забрать':'В процессе'}</button></div>`).join('')}</div>`}
+async function loadAdmin(){try{const a=await api('/api/admin');$('#admin-data').innerHTML=`<div class="grid2"><div class="st"><span>Игроков</span><b>${f2(a.users)}</b></div><div class="st"><span>Видео</span><b>${f2(a.videos)}</b></div></div><div class="card"><h3>Игровые деньги в обороте</h3><b>${f(a.balance)}</b></div><div class="card"><h3>Выдача денег</h3><input id="ad-id" type="number" placeholder="Telegram ID игрока"><input id="ad-sum" type="number" placeholder="Сумма в ₽"><button class="pill" data-a="admin-grant">Выдать</button></div><div class="card"><h3>Экономика</h3><label>Множитель заработка (0.25–3)</label><input id="ad-income" type="number" min=".25" max="3" step=".05" value="${a.settings.income_multiplier}"><button class="pill" data-a="admin-save" data-key="income_multiplier">Сохранить</button><label>Оценка новых номеров (0.25–3)</label><input id="ad-payout" type="number" min=".25" max="3" step=".05" value="${a.settings.case_payout_multiplier}"><button class="pill" data-a="admin-save" data-key="case_payout_multiplier">Сохранить</button></div>`}catch(e){toast(e.message)}}
+function mkNav(){$('#nv').innerHTML='<i id="ni"></i>'+[['home','⌂','Главная'],['studio','●','Студия'],['phones','▯','Телефоны'],['numbers','+7','Номера'],['profile','◉','Профиль'],...(S.isAdmin?[['admin','⚙','Админ']]:[])].map(([k,i,t])=>`<button data-a="t" data-t="${k}"><i>${i}</i>${t}</button>`).join('')}
 function setNav(){requestAnimationFrame(()=>{document.querySelectorAll('#nv button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab));const b=$('#nv [data-t='+tab+']'),n=$('#ni');if(!b||!n)return;n.style.width=b.getBoundingClientRect().width+'px';n.style.transform='translate3d('+b.offsetLeft+'px,0,0)'})}
 addEventListener('resize',()=>$('#ni')&&setNav());
-function draw(){const v=$('#vw');const go=()=>{v.innerHTML=V[tab]();v.scrollTop=0;cs=S.cash;if(!$('#ni'))mkNav();setNav();if(tab=='numbers'&&mode=='gen')initSim();v.classList.remove('out');requestAnimationFrame(showTut)};if(first){first=false;go();return}v.classList.add('out');clearTimeout(dt);dt=setTimeout(go,150);if($('#ni'))setNav()}
+function draw(){const v=$('#vw');const go=()=>{v.innerHTML=V[tab]();if(tab==='admin')loadAdmin();v.scrollTop=0;cs=S.cash;if(!$('#ni'))mkNav();setNav();if(tab=='numbers'&&mode=='gen')initSim();v.classList.remove('out');requestAnimationFrame(showTut)};if(first){first=false;go();return}v.classList.add('out');clearTimeout(dt);dt=setTimeout(go,150);if($('#ni'))setNav()}
 const TUT=[
  {tab:'home',q:'[data-a="first"]',h:'Забери первый телефон',p:'Начнём со старого iPhone 5. Нажми на подсвеченную кнопку.'},
  {tab:'phones',q:'[data-a="repair"]',h:'Почини телефон',p:'Ремонт стоит 20 000 ₽. После него телефон будет готов к съёмке.'},
@@ -322,14 +332,15 @@ const TUT=[
 function showTut(){
  const step=TUT[S.tutorial], view=$('#vw'), nav=$('#nv');
  nav.inert=!!step;
- if(!step)return;
+ if(!step){document.getElementById('guide-shade')?.remove();return;}
  if(tab!==step.tab){tab=step.tab;draw();return}
  let target=step.q && view.querySelector(step.q);
  if(S.tutorial===2 && target)target=target.closest('.card');
  const group=target && [...view.children].find(el=>el===target||el.contains(target));
+ document.getElementById('guide-shade')?.remove();const shade=document.createElement('div');shade.id='guide-shade';document.getElementById('app').append(shade);
  const tip=document.createElement('aside');tip.id='guide';tip.setAttribute('role','status');
  tip.innerHTML='<small>ОБУЧЕНИЕ · '+(S.tutorial+1)+' / '+TUT.length+'</small><b>'+step.h+'</b><p>'+step.p+'</p>';
- if(group)group.before(tip);else view.prepend(tip);
+ if(group)group.before(tip);else view.prepend(tip);if(group)group.classList.add('guide-top');
  for(const el of view.children)if(el!==tip&&el!==group)el.inert=true;
  if(target){target.classList.add('guide-target');const vr=view.getBoundingClientRect(),r=target.getBoundingClientRect();if(r.bottom>vr.bottom-14)view.scrollTop+=r.bottom-vr.bottom+18}
  else if(!step.q)tip.insertAdjacentHTML('beforeend','<button class="pill" data-a="finish-tutorial">Начать играть</button>');
@@ -362,7 +373,7 @@ function done(){sim.classList.remove('busy','charge');sim.classList.add('r'+n.r)
 burst([16,55,120,240][n.r],n.r==3?[rc,'#fff','#ffe08c','#ff9a3d']:[rc,'#fff'],[3,5,7,10][n.r]);rl.textContent=RR[n.r][0].toUpperCase();rl.className='pop';countUp($('#ev'),n.v);
 if(n.r>=3){const a=$('#app');a.classList.add('shake');setTimeout(()=>a.classList.remove('shake'),700)}
 try{navigator.vibrate&&navigator.vibrate([[10],[20,40,20],[30,50,30],[30,50,30,50,160]][n.r])}catch(e){}
-S.nums.push(n);last=n;busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');save();toast('Номер добавлен в «Мои номера»')}
+S.nums.push(n);last=n;$('#gb').insertAdjacentHTML('afterend',`<div class="case-won"><b style="color:${RR[n.r][1]}">${RR[n.r][0]} · ${f(n.v*.4)} за продажу</b><p>${reason(n)}. Оценка ${f(n.v)}, выкуп игрой 40%. ${n.v*.4>=x.p?'Этот номер окупает стоимость кейса!':'Этот номер не окупает стоимость кейса.'}</p><button class="pill" data-a="sell-new" data-id="${n.id}">Продать за ${f(n.v*.4)}</button></div>`);busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');save();toast('Номер добавлен в «Мои номера»')}
 requestAnimationFrame(fr)}
 
 V.numbers=function(){const c=CS[ck];return head()+`<div class="eb">УНИКАЛЬНЫЕ SIM</div><div class="hd"><h1>Номера</h1><div class="bdg">+7</div></div>
@@ -372,7 +383,7 @@ ${mode=='gen'?`<p class="sub" style="margin:0">Выбери класс кейс�
 <div class="stg" id="stg"><div class="sim" id="sim"><div class="scan"></div><div class="sr"><span>VIRAL SIM</span><span>${c.k}</span></div><div class="mid"><div class="chip"></div><svg class="nfc" viewBox="0 0 24 24"><path d="M8 7c3 3 3 7 0 10M12 4.5c4.5 4.5 4.5 10.5 0 15M16 2c6 6 6 14 0 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div class="num idle" id="nu">+7 XXX XXX XX XX</div><div class="sf"><span id="rl">ГОТОВ К ГЕНЕРАЦИИ</span><span id="ev"></span></div><div class="bar"><i id="br"></i></div></div></div>
 <div class="rs" id="rs">${RR.map((r,i)=>`<div class="z" style="--zc:${r[1]}"><i></i>${['Обыч','Редк','Эпик','Лег','Секрет'][i]}</div>`).join('')}</div>
 <button class="go" data-a="gen" id="gb"><span>${last?'Сгенерировать ещё':'Сгенерировать номер'}</span><small>${f(c.p)}</small></button>
-<div class="note">Выкуп игрой: 40% оценочной стоимости · номер возвращается в оборот</div>`:
+<div class="note">Шанс окупить кейс: 30% · не окупить: 70%. Продажа: 40% оценки. Вероятности редкостей указаны для каждого кейса.</div><div class="note">${Object.entries(CS).map(([k,v])=>`${v.n}: ${v.w.map((q,i)=>q?RR[i][0]+' '+Math.round(q*100)+'%':'').filter(Boolean).join(' · ')}`).join('<br>')}</div>`:
 `<div class="sub" style="margin:0 0 4px">${S.nums.length} / 5 номеров</div>${S.nums.length?S.nums.map((n,i)=>`<div class="card row"><div><b style="font-size:17px">${fmt(n.d)}</b><div style="font-size:11px;font-weight:800;color:${RR[n.r][1]};margin-top:4px">${RR[n.r][0].toUpperCase()} · ${f(n.v)}</div></div><button class="pill" data-a="sell" data-i="${i}">Продать<br><small>${f(n.v*.4)}</small></button></div>`).join(''):'<div class="card sub">Открой первый кейс с номером</div>'}`}`};
 const EB=u=>{const d=u-1;return 1+3.2*d*d*d+2.2*d*d};
 function setZ(i,hit){document.querySelectorAll('#rs .z').forEach((z,j)=>{z.classList.toggle('on',j==i);z.classList.toggle('hit',!!hit&&j==i)})}
@@ -396,9 +407,12 @@ function done(){sim.classList.remove('busy','charge');sim.classList.add('r'+n.r)
 burst([12,22,32,45,60][n.r],n.r>=3?[rc,'#fff','#ffe08c','#ff507a']:[rc,'#fff'],[3,5,7,9,11][n.r]);lb.textContent=RR[n.r][0].toUpperCase();lb.className='pop';countUp($('#ev'),n.v);
 if(n.r>=3){const a=$('#app');a.classList.add('shake');setTimeout(()=>a.classList.remove('shake'),700)}
 try{window.Telegram&&Telegram.WebApp.HapticFeedback&&Telegram.WebApp.HapticFeedback.impactOccurred(['light','medium','heavy','rigid','rigid'][n.r]);navigator.vibrate&&navigator.vibrate([[10],[20,40,20],[30,50,30],[30,50,30,50,160],[50,70,50,70,220]][n.r])}catch(e){}
-last=n;busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');toast('Номер добавлен в «Мои номера»')}
+last=n;$('#gb').insertAdjacentHTML('afterend',`<div class="case-won"><b style="color:${RR[n.r][1]}">${RR[n.r][0]} · ${f(n.v*.4)} за продажу</b><p>${reason(n)}. Оценка ${f(n.v)}, выкуп игрой 40%. ${n.v*.4>=x.p?'Этот номер окупает стоимость кейса!':'Этот номер не окупает стоимость кейса.'}</p><button class="pill" data-a="sell-new" data-id="${n.id}">Продать за ${f(n.v*.4)}</button></div>`);busy=false;$('#gb').disabled=false;$('#gb').firstChild.textContent='Сгенерировать ещё';log('Получен номер '+fmt(n.d)+' ('+RR[n.r][0].toLowerCase()+')');toast('Номер добавлен в «Мои номера»')}
 requestAnimationFrame(fr)}
 async function boot(){try{const tg=window.Telegram&&Telegram.WebApp;if(tg&&tg.initData!==undefined){tg.ready();tg.expand();try{if(tg.isVersionAtLeast('8.0')&&!tg.isFullscreen)tg.requestFullscreen()}catch{}tg.setHeaderColor('#050507');tg.setBackgroundColor('#050507');try{tg.disableVerticalSwipes()}catch(e){}document.body.classList.add('tg')}const [cat,st]=await Promise.all([api('/api/catalog'),api('/api/state')]);PH=cat.phones.map(p=>({id:p.id,n:p.name,cam:p.cam,perf:p.perf,p:p.starter?0:p.value,brand:p.brand,rarity:p.rarity,flagship:!!p.flagship}));applyState(st.state);draw();setTimeout(()=>$('#sp').classList.add('out'),650)}catch(e){$('#sp').innerHTML=`<div class="v">!</div><b>ОШИБКА ВХОДА</b><small>${e.message}</small>`}}
+const originalHome=V.home; V.home=function(){return originalHome()+progress()};
+const originalStudio=V.studio; V.studio=function(){return originalStudio()+`<div class="card growth"><h3>🎬 ПРОИЗВОДСТВО РОЛИКА</h3><div class="production"><span>01 · ТЕЛЕФОН</span><span>02 · СЪЁМКА</span><span>03 · ПУБЛИКАЦИЯ</span></div><div class="xp-track"><i style="width:${S.phone?'33%':'0%'}"></i></div><p class="sub">Качество камеры, мощность устройства, тема и установленный номер влияют на охваты и доход. После публикации ролик продолжает приносить рубли каждый час.</p></div>`};
+V.admin=function(){return head()+`<div class="eb">ТОЛЬКО ВЛАДЕЛЕЦ</div><div class="hd"><h1>Управление</h1></div><div id="admin-data" class="sub">Загрузка статистики…</div><button class="pill" data-a="admin-refresh">Обновить</button>`};
 boot();
 </script>
 </body>

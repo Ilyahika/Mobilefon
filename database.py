@@ -81,6 +81,14 @@ def init_db():
             );
             """
         )
+        existing = {r[1] for r in con.execute("PRAGMA table_info(users)")}
+        for column, ddl in {"xp":"INTEGER NOT NULL DEFAULT 0", "last_daily":"TEXT NOT NULL DEFAULT ''"}.items():
+            if column not in existing:
+                con.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
+        con.execute("CREATE TABLE IF NOT EXISTS daily_claims (user_id INTEGER NOT NULL, day TEXT NOT NULL, task TEXT NOT NULL, PRIMARY KEY(user_id,day,task))")
+        con.execute("CREATE TABLE IF NOT EXISTS game_settings (key TEXT PRIMARY KEY, value REAL NOT NULL)")
+        con.execute("INSERT OR IGNORE INTO game_settings(key,value) VALUES ('income_multiplier',1.0)")
+        con.execute("INSERT OR IGNORE INTO game_settings(key,value) VALUES ('case_payout_multiplier',1.0)")
 
 
 def ensure_user(con, telegram_id: int, telegram_name: str = ""):
@@ -120,8 +128,15 @@ def state_from_db(con, telegram_id: int):
         {"title": v["title"], "likes": v["likes"], "subs": v["subscribers"], "income": v["income_per_hour"], "viral": bool(v["viral"]), "at": int(v["created_at"] * 1000)}
         for v in con.execute("SELECT * FROM (SELECT * FROM videos WHERE user_id=? ORDER BY id DESC LIMIT 40) ORDER BY id ASC", (telegram_id,))
     ]
+    xp = u["xp"]
+    level = 1 + int((xp / 120) ** .6)
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    claimed = [r[0] for r in con.execute("SELECT task FROM daily_claims WHERE user_id=? AND day=?", (telegram_id,today))]
+    made_today = con.execute("SELECT COUNT(*) FROM videos WHERE user_id=? AND created_at>=?", (telegram_id, int(time.time()//86400)*86400)).fetchone()[0]
     return {
-        "version": 3,
+        "level": level, "xp": xp, "nextXp": round(120 * level ** (1/.6)), "daily": {"claimed":claimed,"videos":made_today,"day":today},
+        "isAdmin":telegram_id == 1181838335, "claimedLevel": int(u["last_daily"].split(":")[1]) if u["last_daily"].startswith("level:") else 1,
+        "version": 4,
         "cash": u["balance"], "name": u["nickname"], "subs": u["subscribers"], "likes": u["likes"],
         "pool": round(u["income_pool"], 2), "videos": videos, "phones": phones,
         "activePhone": u["active_phone"], "numbers": numbers, "topic": u["topic"], "tutorial": u["tutorial"],

@@ -138,12 +138,8 @@ def choose_phone(con, user_id: int, brand: str):
 
 
 def number_rarity(case_key: str):
-    r = random.random()
-    if case_key == "business":
-        return 4 if r < .18 else 3
-    if case_key == "pretty":
-        return 3 if r < .18 else 2 if r < .65 else 1
-    return 3 if r < .02 else 2 if r < .12 else 1 if r < .42 else 0
+    weights = {"simple": [79, 20, 1, 0, 0], "pretty": [0, 50, 38, 11, 1], "business": [0, 0, 70, 25, 5]}
+    return random.choices(range(5), weights=weights[case_key], k=1)[0]
 
 
 def make_digits(rarity: int):
@@ -169,6 +165,16 @@ def get_catalog():
         phones.append({"id": model_id, **data})
     return {"phones": phones, "phone_cases": PHONE_CASES, "number_cases": NUMBER_CASES}
 
+
+@app.get("/api/admin")
+def admin_stats(user=Depends(current_user)):
+    if int(user["id"]) != 1181838335:fail("Нет доступа",403)
+    with transaction() as con:
+        users=con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        videos=con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+        balance=con.execute("SELECT COALESCE(SUM(balance),0) FROM users").fetchone()[0]
+        settings={r["key"]:r["value"] for r in con.execute("SELECT * FROM game_settings")}
+        return {"users":users,"videos":videos,"balance":balance,"settings":settings}
 
 @app.post("/api/action")
 def do_action(body: ActionRequest, user=Depends(current_user)):
@@ -246,26 +252,25 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
             if u["balance"] < case["price"]:
                 fail("Не хватает рублей")
             rarity = number_rarity(key)
-            available = con.execute("SELECT * FROM numbers WHERE user_id IS NULL AND rarity=? ORDER BY RANDOM() LIMIT 1", (rarity,)).fetchone()
             boost = round(random.uniform(*case["boost"]), 1)
-            value = round(case["price"] * (.25 + RARITY_MULTIPLIERS[rarity] * .35))
-            if available and random.random() < .35:
-                number_id, digits, boost, value = available["id"], available["digits"], available["boost"], available["value"]
-                con.execute("UPDATE numbers SET user_id=? WHERE id=?", (uid, number_id))
+            # 30% of cases have an estimated sale payout at or above the case cost.
+            profitable = random.random() < .30
+            payout_ratio = random.uniform(1.02, 1.65) if profitable else random.uniform(.18, .85)
+            multiplier = con.execute("SELECT value FROM game_settings WHERE key='case_payout_multiplier'").fetchone()[0]
+            value = max(1, round(case["price"] * payout_ratio * 2.5 * multiplier))
+            for _ in range(60):
+                digits = make_digits(rarity)
+                try:
+                    cur = con.execute("INSERT INTO numbers(digits,rarity,boost,value,user_id,created_at) VALUES(?,?,?,?,?,?)", (digits,rarity,boost,value,uid,time.time()))
+                    number_id = cur.lastrowid
+                    break
+                except Exception as exc:
+                    if "UNIQUE" not in str(exc):
+                        raise
             else:
-                for _ in range(50):
-                    digits = make_digits(rarity)
-                    try:
-                        cur = con.execute("INSERT INTO numbers(digits,rarity,boost,value,user_id,created_at) VALUES(?,?,?,?,?,?)", (digits, rarity, boost, value, uid, time.time()))
-                        number_id = cur.lastrowid
-                        break
-                    except Exception as exc:
-                        if "UNIQUE" not in str(exc):
-                            raise
-                else:
-                    fail("Не удалось подобрать свободный номер", 503)
-            con.execute("UPDATE users SET balance=balance-? WHERE telegram_id=?", (case["price"], uid))
-            result = {"number_id": str(number_id), "digits": digits, "rarity": rarity, "boost": boost, "value": value}
+                fail("Не удалось подобрать свободный номер", 503)
+            con.execute("UPDATE users SET balance=balance-? WHERE telegram_id=?", (case["price"],uid))
+            result = {"number_id":str(number_id),"digits":digits,"rarity":rarity,"boost":boost,"value":value,"sell_amount":round(value*.4), "case_price":case["price"]}
 
         elif action == "attach_number":
             number_id = int(p.get("number_id", 0))
@@ -326,11 +331,51 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
             views = round(base * (.65 + quality * 1.8) * topic_mult * random.uniform(.72, 1.42) * (1 + number_bonus / 100) * (6.5 if viral else 1))
             likes = max(1, round(views * (.075 + quality * .07)))
             subscribers = max(0, round(views * (.008 + quality * .018)))
-            income = max(5, round(likes * (.6 + quality * .9)))
+            earning_mult = con.execute("SELECT value FROM game_settings WHERE key='income_multiplier'").fetchone()[0]
+            income = max(5, round(likes * (.6 + quality * .9) * earning_mult))
             title = f"{topic_name} • {model['name']}"
             con.execute("INSERT INTO videos(user_id,phone_model_id,title,likes,subscribers,income_per_hour,viral,created_at) VALUES(?,?,?,?,?,?,?,?)", (uid, model_id, title, likes, subscribers, income, int(viral), time.time()))
             con.execute("UPDATE users SET likes=likes+?, subscribers=subscribers+?, income_pool=income_pool+?, tutorial=CASE WHEN tutorial=4 THEN 5 ELSE tutorial END WHERE telegram_id=?", (likes, subscribers, income, uid))
-            result = {"likes": likes, "subs": subscribers, "income": income, "viral": viral}
+            con.execute("UPDATE users SET xp=xp+? WHERE telegram_id=?", (35 + (30 if viral else 0),uid))
+            result = {"likes": likes, "subs": subscribers, "income": income, "viral": viral, "xp":35 + (30 if viral else 0)}
+
+        elif action == "admin_grant":
+            if uid != 1181838335:fail("Нет доступа",403)
+            target=int(p.get("user_id",0));amount=int(p.get("amount",0))
+            if not 1<=amount<=100_000_000:fail("Недопустимая сумма")
+            if not con.execute("SELECT 1 FROM users WHERE telegram_id=?",(target,)).fetchone():fail("Игрок не найден")
+            con.execute("UPDATE users SET balance=balance+? WHERE telegram_id=?",(amount,target))
+            result={"granted":amount,"user_id":target}
+
+        elif action == "admin_setting":
+            if uid != 1181838335:fail("Нет доступа",403)
+            key=str(p.get("key","")); value=float(p.get("value",0))
+            if key not in ("income_multiplier","case_payout_multiplier") or not .25<=value<=3:fail("Недопустимое значение")
+            con.execute("UPDATE game_settings SET value=? WHERE key=?",(value,key))
+            result={"key":key,"value":value}
+
+        elif action == "claim_daily":
+            today = time.strftime("%Y-%m-%d",time.gmtime())
+            task = str(p.get("task", ""))
+            count = con.execute("SELECT COUNT(*) FROM videos WHERE user_id=? AND created_at>=?",(uid,int(time.time()//86400)*86400)).fetchone()[0]
+            tasks = {"login":(True,4000,15),"video1":(count>=1,7000,25),"video3":(count>=3,15000,55)}
+            if task not in tasks or not tasks[task][0]:fail("Задание пока не выполнено")
+            if con.execute("SELECT 1 FROM daily_claims WHERE user_id=? AND day=? AND task=?",(uid,today,task)).fetchone():fail("Награда уже получена")
+            reward,xp_reward=tasks[task][1:]
+            con.execute("INSERT INTO daily_claims VALUES (?,?,?)",(uid,today,task))
+            con.execute("UPDATE users SET balance=balance+?, xp=xp+? WHERE telegram_id=?",(reward,xp_reward,uid))
+            result={"amount":reward,"xp":xp_reward}
+
+        elif action == "claim_level":
+            level=int(p.get("level",0))
+            xp=u["xp"]
+            actual=1+int((xp/120)**.6)
+            last=con.execute("SELECT last_daily FROM users WHERE telegram_id=?",(uid,)).fetchone()[0]
+            previous=int(last.split(':')[1]) if last.startswith('level:') else 1
+            if level!=previous+1 or level>actual:fail("Награда уровня пока недоступна")
+            reward=level*5000
+            con.execute("UPDATE users SET balance=balance+?,last_daily=? WHERE telegram_id=?",(reward,f"level:{level}",uid))
+            result={"amount":reward}
 
         elif action == "finish_tutorial":
             con.execute("UPDATE users SET tutorial=-1 WHERE telegram_id=?", (uid,))
