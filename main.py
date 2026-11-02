@@ -116,6 +116,18 @@ def current_user(x_telegram_init_data: str = Header(default="", alias="X-Telegra
     return validate_telegram(x_telegram_init_data)
 
 
+ADMIN_ID = 1181838335
+
+
+def require_admin(user: dict):
+    if int(user["id"]) != ADMIN_ID:
+        fail("Нет доступа", 403)
+
+
+def audit(con, admin_id: int, action: str, target_id=None, details=""):
+    con.execute("INSERT INTO admin_audit(admin_id,target_id,action,details,created_at) VALUES(?,?,?,?,?)", (admin_id, target_id, action, str(details)[:500], time.time()))
+
+
 class ActionRequest(BaseModel):
     action: str = Field(min_length=1, max_length=40)
     payload: dict = Field(default_factory=dict)
@@ -155,6 +167,8 @@ def get_state(user=Depends(current_user)):
     uid = int(user["id"])
     with transaction() as con:
         ensure_user(con, uid, user.get("first_name", ""))
+        if con.execute("SELECT blocked FROM users WHERE telegram_id=?", (uid,)).fetchone()[0]:
+            fail("Аккаунт заблокирован администратором", 403)
         return {"state": state_from_db(con, uid)}
 
 
@@ -168,23 +182,27 @@ def get_catalog():
 
 @app.get("/api/admin")
 def admin_stats(user=Depends(current_user)):
-    if int(user["id"]) != 1181838335:fail("Нет доступа",403)
+    require_admin(user)
     with transaction() as con:
         users=con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        new_today=con.execute("SELECT COUNT(*) FROM users WHERE created_at>=?", (int(time.time()//86400)*86400,)).fetchone()[0]
+        active_today=con.execute("SELECT COUNT(*) FROM users WHERE last_seen>=?", (time.time()-86400,)).fetchone()[0]
         videos=con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+        phones=con.execute("SELECT COUNT(*) FROM phones").fetchone()[0]
+        numbers=con.execute("SELECT COUNT(*) FROM numbers WHERE user_id IS NOT NULL").fetchone()[0]
         balance=con.execute("SELECT COALESCE(SUM(balance),0) FROM users").fetchone()[0]
         settings={r["key"]:r["value"] for r in con.execute("SELECT * FROM game_settings")}
-        return {"users":users,"videos":videos,"balance":balance,"settings":settings}
+        recent=[dict(r) for r in con.execute("SELECT target_id,action,details,created_at FROM admin_audit ORDER BY id DESC LIMIT 20")]
+        return {"users":users,"newToday":new_today,"activeToday":active_today,"videos":videos,"phones":phones,"numbers":numbers,"balance":balance,"settings":settings,"audit":recent}
 
 @app.get("/api/admin/player/{target_id}")
 def admin_player(target_id: int, user=Depends(current_user)):
-    if int(user["id"]) != 1181838335:
-        fail("Нет доступа", 403)
+    require_admin(user)
     with transaction() as con:
-        r = con.execute("SELECT telegram_id,nickname,balance,subscribers FROM users WHERE telegram_id=?", (target_id,)).fetchone()
+        r = con.execute("SELECT telegram_id,telegram_name,nickname,balance,subscribers,likes,xp,blocked,created_at,last_seen FROM users WHERE telegram_id=?", (target_id,)).fetchone()
         if not r:
             fail("Игрок не найден", 404)
-        return {"id":r["telegram_id"],"name":r["nickname"],"balance":r["balance"],"subscribers":r["subscribers"],
+        return {"id":r["telegram_id"],"telegramName":r["telegram_name"],"name":r["nickname"],"balance":r["balance"],"subscribers":r["subscribers"],"likes":r["likes"],"xp":r["xp"],"blocked":bool(r["blocked"]),"createdAt":r["created_at"],"lastSeen":r["last_seen"],
                 "phones":con.execute("SELECT COUNT(*) FROM phones WHERE user_id=?",(target_id,)).fetchone()[0],
                 "numbers":con.execute("SELECT COUNT(*) FROM numbers WHERE user_id=?",(target_id,)).fetchone()[0],
                 "videos":con.execute("SELECT COUNT(*) FROM videos WHERE user_id=?",(target_id,)).fetchone()[0]}
@@ -198,6 +216,8 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
     with transaction() as con:
         ensure_user(con, uid, user.get("first_name", ""))
         u = con.execute("SELECT * FROM users WHERE telegram_id=?", (uid,)).fetchone()
+        if u["blocked"] and uid != ADMIN_ID:
+            fail("Аккаунт заблокирован администратором", 403)
 
         if action == "claim_starter":
             if con.execute("SELECT COUNT(*) FROM phones WHERE user_id=?", (uid,)).fetchone()[0]:
@@ -348,7 +368,7 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
                 fail("Сначала выбери телефон")
             if row["broken"]:
                 fail("Сначала почини телефон")
-            cutoff = time.time() - 1800
+            cutoff = time.time() - 600
             uses = [float(x) for x in json.loads(row["uses_json"] or "[]") if float(x) > cutoff]
             if len(uses) >= 3:
                 fail("На этом телефоне использованы все 3 попытки")
@@ -359,9 +379,9 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
             num = con.execute("SELECT boost FROM numbers WHERE user_id=? AND phone_model_id=?", (uid, model_id)).fetchone()
             number_bonus = float(num["boost"]) if num else 0.0
             quality = (model["cam"] * .62 + model["perf"] * .38) / 100
-            base = 45 + u["subscribers"] * .045
+            audience = 45 + u["subscribers"] * .048 + (max(0, u["likes"]) ** .5) * 1.15
             viral = random.random() < (.035 + quality * .07 + number_bonus / 800)
-            views = round(base * (.65 + quality * 1.8) * topic_mult * random.uniform(.72, 1.42) * (1 + number_bonus / 100) * (6.5 if viral else 1))
+            views = round(audience * (.55 + quality * 2.0) * topic_mult * random.uniform(.76, 1.36) * (1 + number_bonus / 100) * (6.5 if viral else 1))
             likes = max(1, round(views * (.075 + quality * .07)))
             subscribers = max(0, round(views * (.008 + quality * .018)))
             earning_mult = con.execute("SELECT value FROM game_settings WHERE key='income_multiplier'").fetchone()[0]
@@ -372,19 +392,31 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
             con.execute("UPDATE users SET xp=xp+? WHERE telegram_id=?", (35 + (30 if viral else 0),uid))
             result = {"likes": likes, "subs": subscribers, "income": income, "viral": viral, "xp":35 + (30 if viral else 0)}
 
-        elif action == "admin_grant":
-            if uid != 1181838335:fail("Нет доступа",403)
-            target=int(p.get("user_id",0));amount=int(p.get("amount",0))
-            if not 1<=amount<=100_000_000:fail("Недопустимая сумма")
+        elif action == "admin_adjust":
+            if uid != ADMIN_ID:fail("Нет доступа",403)
+            target=int(p.get("user_id",0));field=str(p.get("field",""));amount=int(p.get("amount",0));allowed={"balance":"balance","subscribers":"subscribers","likes":"likes","xp":"xp"}
+            if field not in allowed or not -100_000_000<=amount<=100_000_000 or amount == 0:fail("Недопустимое изменение")
             if not con.execute("SELECT 1 FROM users WHERE telegram_id=?",(target,)).fetchone():fail("Игрок не найден")
-            con.execute("UPDATE users SET balance=balance+? WHERE telegram_id=?",(amount,target))
-            result={"granted":amount,"user_id":target}
+            column=allowed[field];con.execute(f"UPDATE users SET {column}=MAX(0,{column}+?) WHERE telegram_id=?",(amount,target));audit(con,uid,"adjust",target,f"{field}: {amount:+d}");result={"amount":amount,"field":field,"user_id":target}
+
+        elif action == "admin_block":
+            if uid != ADMIN_ID:fail("Нет доступа",403)
+            target=int(p.get("user_id",0));blocked=1 if p.get("blocked") else 0
+            if target == ADMIN_ID:fail("Нельзя заблокировать владельца")
+            if not con.execute("SELECT 1 FROM users WHERE telegram_id=?",(target,)).fetchone():fail("Игрок не найден")
+            con.execute("UPDATE users SET blocked=? WHERE telegram_id=?",(blocked,target));audit(con,uid,"block" if blocked else "unblock",target);result={"blocked":bool(blocked),"user_id":target}
+
+        elif action == "admin_reset_attempts":
+            if uid != ADMIN_ID:fail("Нет доступа",403)
+            target=int(p.get("user_id",0));con.execute("UPDATE phones SET uses_json='[]' WHERE user_id=?",(target,));audit(con,uid,"reset_attempts",target);result={"user_id":target}
 
         elif action == "admin_setting":
-            if uid != 1181838335:fail("Нет доступа",403)
+            if uid != ADMIN_ID:fail("Нет доступа",403)
             key=str(p.get("key","")); value=float(p.get("value",0))
-            if key not in ("income_multiplier","case_payout_multiplier") or not .25<=value<=3:fail("Недопустимое значение")
+            ranges={"income_multiplier":(.25,3),"case_payout_multiplier":(.25,3),"income_cap_hours":(1,24)}
+            if key not in ranges or not ranges[key][0]<=value<=ranges[key][1]:fail("Недопустимое значение")
             con.execute("UPDATE game_settings SET value=? WHERE key=?",(value,key))
+            audit(con,uid,"setting",None,f"{key}={value}")
             result={"key":key,"value":value}
 
         elif action == "claim_daily":

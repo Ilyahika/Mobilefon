@@ -82,13 +82,27 @@ def init_db():
             """
         )
         existing = {r[1] for r in con.execute("PRAGMA table_info(users)")}
-        for column, ddl in {"xp":"INTEGER NOT NULL DEFAULT 0", "last_daily":"TEXT NOT NULL DEFAULT ''"}.items():
+        for column, ddl in {
+            "xp":"INTEGER NOT NULL DEFAULT 0",
+            "last_daily":"TEXT NOT NULL DEFAULT ''",
+            "blocked":"INTEGER NOT NULL DEFAULT 0",
+            "last_seen":"REAL NOT NULL DEFAULT 0"
+        }.items():
             if column not in existing:
                 con.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
         con.execute("CREATE TABLE IF NOT EXISTS daily_claims (user_id INTEGER NOT NULL, day TEXT NOT NULL, task TEXT NOT NULL, PRIMARY KEY(user_id,day,task))")
         con.execute("CREATE TABLE IF NOT EXISTS game_settings (key TEXT PRIMARY KEY, value REAL NOT NULL)")
         con.execute("INSERT OR IGNORE INTO game_settings(key,value) VALUES ('income_multiplier',1.0)")
         con.execute("INSERT OR IGNORE INTO game_settings(key,value) VALUES ('case_payout_multiplier',1.0)")
+        con.execute("INSERT OR IGNORE INTO game_settings(key,value) VALUES ('income_cap_hours',4.0)")
+        con.execute("""CREATE TABLE IF NOT EXISTS admin_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            target_id INTEGER,
+            action TEXT NOT NULL,
+            details TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL
+        )""")
 
 
 def ensure_user(con, telegram_id: int, telegram_name: str = ""):
@@ -98,7 +112,9 @@ def ensure_user(con, telegram_id: int, telegram_name: str = ""):
         (telegram_id, telegram_name[:64], ts, ts),
     )
     if telegram_name:
-        con.execute("UPDATE users SET telegram_name=? WHERE telegram_id=?", (telegram_name[:64], telegram_id))
+        con.execute("UPDATE users SET telegram_name=?, last_seen=? WHERE telegram_id=?", (telegram_name[:64], ts, telegram_id))
+    else:
+        con.execute("UPDATE users SET last_seen=? WHERE telegram_id=?", (ts, telegram_id))
 
 
 def settle_income(con, telegram_id: int):
@@ -106,11 +122,14 @@ def settle_income(con, telegram_id: int):
     if not row:
         return
     ts = time.time()
-    seconds = max(0.0, min(ts - row["last_income_at"], 7 * 86400))
+    cap_row = con.execute("SELECT value FROM game_settings WHERE key='income_cap_hours'").fetchone()
+    cap_seconds = max(3600.0, min(float(cap_row[0] if cap_row else 4), 24.0) * 3600)
+    seconds = max(0.0, min(ts - row["last_income_at"], cap_seconds))
     hourly = con.execute("SELECT COALESCE(SUM(income_per_hour),0) total FROM videos WHERE user_id=?", (telegram_id,)).fetchone()["total"]
+    cap_amount = hourly * cap_seconds / 3600
     con.execute(
-        "UPDATE users SET income_pool=income_pool+?, last_income_at=? WHERE telegram_id=?",
-        (hourly * seconds / 3600, ts, telegram_id),
+        "UPDATE users SET income_pool=MIN(income_pool+?, ?), last_income_at=? WHERE telegram_id=?",
+        (hourly * seconds / 3600, cap_amount, ts, telegram_id),
     )
 
 
@@ -133,11 +152,15 @@ def state_from_db(con, telegram_id: int):
     today = time.strftime("%Y-%m-%d", time.gmtime())
     claimed = [r[0] for r in con.execute("SELECT task FROM daily_claims WHERE user_id=? AND day=?", (telegram_id,today))]
     made_today = con.execute("SELECT COUNT(*) FROM videos WHERE user_id=? AND created_at>=?", (telegram_id, int(time.time()//86400)*86400)).fetchone()[0]
+    hourly = con.execute("SELECT COALESCE(SUM(income_per_hour),0) FROM videos WHERE user_id=?", (telegram_id,)).fetchone()[0]
+    cap_row = con.execute("SELECT value FROM game_settings WHERE key='income_cap_hours'").fetchone()
+    cap_hours = float(cap_row[0] if cap_row else 4)
     return {
         "level": level, "xp": xp, "nextXp": round(120 * level ** (1/.6)), "daily": {"claimed":claimed,"videos":made_today,"day":today},
         "isAdmin":telegram_id == 1181838335, "claimedLevel": int(u["last_daily"].split(":")[1]) if u["last_daily"].startswith("level:") else 1,
         "version": 4,
         "cash": u["balance"], "name": u["nickname"], "subs": u["subscribers"], "likes": u["likes"],
+        "hourly": hourly, "incomeCap": round(hourly * cap_hours), "incomeCapHours": cap_hours,
         "pool": round(u["income_pool"], 2), "videos": videos, "phones": phones,
         "activePhone": u["active_phone"], "numbers": numbers, "topic": u["topic"], "tutorial": u["tutorial"],
     }
