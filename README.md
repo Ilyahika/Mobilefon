@@ -82,14 +82,3 @@ DATABASE_PATH=/var/data/viral_life.db
 ```
 
 Для большого онлайна позже лучше перейти на PostgreSQL. Структура API уже отделена от интерфейса, поэтому миграцию можно выполнить без переделки дизайна.
-
-## Viral Life v7 changes
-- Four fixed bottom tabs: Главная / Студия / Кейсы / Меню.
-- Меню contains collection of numbers, profile, help, support placeholder, market maintenance placeholder and server-verified admin panel.
-- Главная displays hourly income, subscribers, likes, earnings, compact phone cards. Tap a phone for a detailed view and server-confirmed sale.
-- Студия includes video topic controls and phone-dependent 3 attempts per 30 minutes.
-- Updated tutorial hint transitions and dimming, while preserving the original UI palette.
-- Number valuations use disjoint rarity-specific resale value bands; at default multiplier the intended profitability is ~30%, though realized samples fluctuate.
-- Admin panel can look up a player, grant currency and adjust earnings or case value multipliers.
-- The market and support integration are placeholders: connect a real support address and market implementation before advertising those features as live.
-- Deployment: keep your existing DATABASE_PATH/database file and environment variables. Never overwrite the live DB with an empty one.
