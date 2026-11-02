@@ -176,6 +176,20 @@ def admin_stats(user=Depends(current_user)):
         settings={r["key"]:r["value"] for r in con.execute("SELECT * FROM game_settings")}
         return {"users":users,"videos":videos,"balance":balance,"settings":settings}
 
+@app.get("/api/admin/player/{target_id}")
+def admin_player(target_id: int, user=Depends(current_user)):
+    if int(user["id"]) != 1181838335:
+        fail("Нет доступа", 403)
+    with transaction() as con:
+        r = con.execute("SELECT telegram_id,nickname,balance,subscribers FROM users WHERE telegram_id=?", (target_id,)).fetchone()
+        if not r:
+            fail("Игрок не найден", 404)
+        return {"id":r["telegram_id"],"name":r["nickname"],"balance":r["balance"],"subscribers":r["subscribers"],
+                "phones":con.execute("SELECT COUNT(*) FROM phones WHERE user_id=?",(target_id,)).fetchone()[0],
+                "numbers":con.execute("SELECT COUNT(*) FROM numbers WHERE user_id=?",(target_id,)).fetchone()[0],
+                "videos":con.execute("SELECT COUNT(*) FROM videos WHERE user_id=?",(target_id,)).fetchone()[0]}
+
+
 @app.post("/api/action")
 def do_action(body: ActionRequest, user=Depends(current_user)):
     uid = int(user["id"])
@@ -253,11 +267,30 @@ def do_action(body: ActionRequest, user=Depends(current_user)):
                 fail("Не хватает рублей")
             rarity = number_rarity(key)
             boost = round(random.uniform(*case["boost"]), 1)
-            # 30% of cases have an estimated sale payout at or above the case cost.
-            profitable = random.random() < .30
-            payout_ratio = random.uniform(1.02, 1.65) if profitable else random.uniform(.18, .85)
+            # Strict non-overlapping resale value tiers: a higher rarity always costs more.
+            sale_bands = ((4_000,30_000),(30_001,55_000),(55_001,345_000),(345_001,900_000),(900_001,2_500_000))
+            lo, hi = sale_bands[rarity]
+            # Target 30% profitability per case, respecting rarity-price ordering.
+            if key == "business":
+                profitable = rarity >= 3
+            elif key == "pretty":
+                profitable = rarity >= 3 or (rarity == 2 and random.random() < 18/38)
+            else:
+                # Rare and epic always cover a simple case (21%); common numbers fill the remaining 9%.
+                profitable = rarity >= 1 or random.random() < 9/79
+            if profitable:
+                lo = max(lo, case["price"] + 1)
+            else:
+                hi = min(hi, case["price"] - 1)
+            if lo > hi:
+                # For simple cases, the rare/epic tier necessarily exceeds the case price.
+                lo, hi = sale_bands[rarity]
             multiplier = con.execute("SELECT value FROM game_settings WHERE key='case_payout_multiplier'").fetchone()[0]
-            value = max(1, round(case["price"] * payout_ratio * 2.5 * multiplier))
+            # Value and sale price scale together; clamp to protect rarity boundaries.
+            base_sale = random.randint(lo, hi)
+            low_limit, high_limit = sale_bands[rarity]
+            sale_price = max(low_limit, min(high_limit, round(base_sale * multiplier)))
+            value = int(sale_price * 2.5)
             for _ in range(60):
                 digits = make_digits(rarity)
                 try:
